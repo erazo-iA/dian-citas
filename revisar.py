@@ -1,5 +1,5 @@
 import os, time, urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 from playwright.sync_api import sync_playwright
 
@@ -79,11 +79,8 @@ def revisar(nav):
 
 os.makedirs("capturas", exist_ok=True)
 ahora = datetime.now(TZ)
-if ahora.hour * 60 + ahora.minute < 13 * 60 + 30:
-    inicio = ahora.replace(hour=11, minute=0, second=0)
-else:
-    inicio = ahora.replace(hour=14, minute=0, second=0)
-fin = inicio + timedelta(hours=3)
+inicio = ahora.replace(hour=12, minute=0, second=0)
+fin = ahora.replace(hour=17, minute=0, second=0)
 if not MANUAL:
     while datetime.now(TZ) < inicio:
         time.sleep(20)
