@@ -6,7 +6,9 @@ from playwright.sync_api import sync_playwright
 TOPIC = os.environ["NTFY_TOPIC"]
 URL = "https://agendamiento.dian.gov.co/"
 TZ = ZoneInfo("America/Bogota")
-MANUAL = os.environ.get("GITHUB_EVENT_NAME") != "schedule"
+_min = datetime.now(TZ).hour * 60 + datetime.now(TZ).minute
+DENTRO = 11 * 60 + 30 <= _min < 17 * 60
+MANUAL = os.environ.get("GITHUB_EVENT_NAME") != "schedule" and not DENTRO
 PASOS = [r"Agendar\s*cita", r"Persona\s*Natural", r"Video\s*atenci", r"Devoluciones"]
 ESPERA = 60  # segundos entre revisiones
 
@@ -79,11 +81,13 @@ def revisar(nav):
 
 os.makedirs("capturas", exist_ok=True)
 ahora = datetime.now(TZ)
-inicio = ahora.replace(hour=12, minute=0, second=0)
+inicio = ahora.replace(hour=12, minute=30, second=0)
 fin = ahora.replace(hour=17, minute=0, second=0)
 if not MANUAL:
     while datetime.now(TZ) < inicio:
         time.sleep(20)
+    avisar("Vigilancia activa hasta las 5:00 p.m. Te aviso si aparece cita en Medellin.",
+           "Citas DIAN: vigilando", "low", "eyes")
 
 ultimo, fallos, ult_error = {}, 0, ""
 with sync_playwright() as p:
