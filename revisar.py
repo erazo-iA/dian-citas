@@ -7,10 +7,10 @@ TOPIC = os.environ["NTFY_TOPIC"]
 URL = "https://agendamiento.dian.gov.co/"
 TZ = ZoneInfo("America/Bogota")
 _min = datetime.now(TZ).hour * 60 + datetime.now(TZ).minute
-DENTRO = 11 * 60 + 30 <= _min < 17 * 60
+DENTRO = 7 * 60 + 30 <= _min < 17 * 60
 MANUAL = os.environ.get("GITHUB_EVENT_NAME") != "schedule" and not DENTRO
 PASOS = [r"Agendar\s*cita", r"Persona\s*Natural", r"Video\s*atenci", r"Devoluciones"]
-ESPERA = 60  # segundos entre revisiones
+ESPERA = 20  # segundos entre revisiones
 
 JS_CLIC = """(pat) => {
   const re = new RegExp(pat, 'i');
@@ -31,19 +31,19 @@ def avisar(msg, titulo="Citas DIAN", prioridad="default", tags=""):
     urllib.request.urlopen(req, timeout=20)
 
 def esperar_carga(pag):
-    pag.wait_for_timeout(1500)
-    for _ in range(80):
+    pag.wait_for_timeout(700)
+    for _ in range(100):
         if not pag.evaluate(JS_CARGANDO):
             break
-        pag.wait_for_timeout(500)
-    pag.wait_for_timeout(1000)
+        pag.wait_for_timeout(300)
+    pag.wait_for_timeout(500)
 
 def clic(pag, patron):
-    for _ in range(40):
+    for _ in range(60):
         if pag.evaluate(JS_CLIC, patron):
             esperar_carga(pag)
             return
-        pag.wait_for_timeout(1000)
+        pag.wait_for_timeout(500)
     raise Exception("no encontre el boton")
 
 def revisar(nav):
@@ -57,12 +57,12 @@ def revisar(nav):
         esperar_carga(pag)
         for paso in PASOS:
             clic(pag, paso)
-        pag.wait_for_timeout(3000)
+        pag.wait_for_timeout(1500)
         esperar_carga(pag)
         texto = pag.inner_text("body").lower()
-        pag.screenshot(path="capturas/ultima.png", full_page=True)
         if "no se encontraron especialidades" in texto:
             return "no_hay"
+        pag.screenshot(path="capturas/ultima.png", full_page=True)
         if "medell" in texto:
             pag.screenshot(path="capturas/alerta.png", full_page=True)
             return "hay"
@@ -81,12 +81,16 @@ def revisar(nav):
 
 os.makedirs("capturas", exist_ok=True)
 ahora = datetime.now(TZ)
-inicio = ahora.replace(hour=12, minute=30, second=0)
-fin = ahora.replace(hour=17, minute=0, second=0)
+if ahora.hour * 60 + ahora.minute < 11 * 60 + 30:
+    inicio = ahora.replace(hour=8, minute=0, second=0)    # Turno 1
+    fin = ahora.replace(hour=12, minute=0, second=0)
+else:
+    inicio = ahora.replace(hour=12, minute=0, second=0)   # Turno 2
+    fin = ahora.replace(hour=17, minute=0, second=0)
 if not MANUAL:
     while datetime.now(TZ) < inicio:
-        time.sleep(20)
-    avisar("Vigilancia activa hasta las 5:00 p.m. Te aviso si aparece cita en Medellin.",
+        time.sleep(10)
+    avisar(f"Vigilancia activa hasta las {fin.strftime('%I:%M %p')}. Te aviso si aparece cita en Medellin.",
            "Citas DIAN: vigilando", "low", "eyes")
 
 ultimo, fallos, ult_error = {}, 0, ""
@@ -99,10 +103,10 @@ with sync_playwright() as p:
         except Exception as e:
             estado, ult_error = "error", str(e)[:700]
             fallos += 1
-        hora = datetime.now(TZ).strftime("%I:%M %p")
+        hora = datetime.now(TZ).strftime("%I:%M:%S %p")
         print(hora, estado, ult_error if estado == "error" else "", flush=True)
         t = time.time()
-        if estado == "hay" and t - ultimo.get("hay", 0) > 300:
+        if estado == "hay" and t - ultimo.get("hay", 0) > 180:
             avisar(f"HAY CITAS EN MEDELLIN ({hora}). Entra YA: Agendar cita > Persona Natural > Videoatencion > Devoluciones > Medellin",
                    "CITA DIAN DISPONIBLE", "urgent", "rotating_light")
             ultimo["hay"] = t
